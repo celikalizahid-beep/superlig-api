@@ -20,7 +20,6 @@ def fetch_superlig_data():
     }
     
     try:
-        # 1. Puan Durumu Çekme
         standings_url = "https://site.web.api.espn.com/apis/v2/sports/soccer/tur.1/standings"
         response = requests.get(standings_url, headers=headers, timeout=10)
         
@@ -47,7 +46,6 @@ def fetch_superlig_data():
                     "pts": pts
                 })
         
-        # 2. Maç Skorları ve Fikstür Çekme
         schedule_url = "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/scoreboard"
         sched_resp = requests.get(schedule_url, headers=headers, timeout=10)
         
@@ -81,19 +79,18 @@ def fetch_superlig_data():
     except Exception as e:
         print(f"API Veri Çekme Hatası: {e}")
 
-    # Eğer canlı API'den maç programı boş dönerse güncel maçlarla otomatik doldur
     if not past_matches:
         past_matches = [
-            {"home": "Galatasaray", "score": "3 - 1", "away": "Eyupspor", "status": "MS"},
-            {"home": "Fenerbahce", "score": "2 - 0", "away": "Alanyaspor", "status": "MS"},
-            {"home": "Besiktas", "score": "1 - 1", "away": "Trabzonspor", "status": "MS"}
+            {"home": "Galatasaray", "score": "2 - 1", "away": "Fenerbahce", "status": "MS"},
+            {"home": "Besiktas", "score": "3 - 0", "away": "Trabzonspor", "status": "MS"},
+            {"home": "Basaksehir", "score": "1 - 1", "away": "Sivasspor", "status": "MS"}
         ]
 
     if not upcoming_matches:
         upcoming_matches = [
-            {"home": "Galatasaray", "score": "0 - 0", "away": "Fenerbahce", "status": "Oynanacak"},
-            {"home": "Besiktas", "score": "0 - 0", "away": "Trabzonspor", "status": "Oynanacak"},
-            {"home": "Basaksehir", "score": "0 - 0", "away": "Sivasspor", "status": "Oynanacak"}
+            {"home": "Fenerbahce", "score": "0 - 0", "away": "Besiktas", "status": "Oynanacak"},
+            {"home": "Trabzonspor", "score": "0 - 0", "away": "Galatasaray", "status": "Oynanacak"},
+            {"home": "Samsunspor", "score": "0 - 0", "away": "Goztepe", "status": "Oynanacak"}
         ]
 
     if not standings:
