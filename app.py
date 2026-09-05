@@ -5,7 +5,6 @@ import time
 
 app = Flask(__name__)
 
-# 2 dakikalık (120 saniye) ön bellek (cache)
 CACHE_TIMEOUT = 120
 cache_data = {
     "timestamp": 0,
@@ -54,15 +53,23 @@ def fetch_superlig_data():
             "standings": []
         }
 
+# Ana Sayfa Kontrolü (Artık ana adrese girince Not Found demeyecek)
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "status": "online",
+        "message": "Super Lig API Servisi Calisiyor",
+        "endpoint": "/api/superlig"
+    })
+
+# ESP32'nin Veri Çekeceği Adres
 @app.route('/api/superlig', methods=['GET'])
 def get_superlig():
     current_time = time.time()
     
-    # Süre dolmadıysa ön bellekteki veriyi ver
     if cache_data["payload"] and (current_time - cache_data["timestamp"] < CACHE_TIMEOUT):
         return jsonify(cache_data["payload"])
     
-    # Süre dolduysa sıfırdan yeni veri çek
     fresh_data = fetch_superlig_data()
     if fresh_data["status"] == "success":
         cache_data["timestamp"] = current_time
@@ -70,9 +77,5 @@ def get_superlig():
         
     return jsonify(fresh_data)
 
-@app.route('/')
-def home():
-    return "Süper Lig ESP32 API Servisi Çalışıyor!"
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
