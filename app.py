@@ -12,7 +12,6 @@ cache_data = {
 
 def fetch_superlig_data():
     standings = []
-    past_matches = []
     upcoming_matches = []
     
     headers = {
@@ -20,6 +19,7 @@ def fetch_superlig_data():
     }
     
     try:
+        # 1. Güncel Puan Durumu Çekme
         standings_url = "https://site.web.api.espn.com/apis/v2/sports/soccer/tur.1/standings"
         response = requests.get(standings_url, headers=headers, timeout=10)
         
@@ -46,6 +46,7 @@ def fetch_superlig_data():
                     "pts": pts
                 })
         
+        # 2. Gelecek Maçlar / Fikstür Çekme
         schedule_url = "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/scoreboard"
         sched_resp = requests.get(schedule_url, headers=headers, timeout=10)
         
@@ -58,39 +59,27 @@ def fetch_superlig_data():
                 status_type = competition.get("status", {}).get("type", {}).get("completed", False)
                 
                 competitors = competition.get("competitors", [])
-                if len(competitors) >= 2:
+                # Sadece henüz oynanmamış (gelecek) maçları alıyoruz
+                if len(competitors) >= 2 and not status_type:
                     home_team = competitors[0].get("team", {}).get("shortDisplayName", "")
-                    home_score = competitors[0].get("score", "0")
                     away_team = competitors[1].get("team", {}).get("shortDisplayName", "")
-                    away_score = competitors[1].get("score", "0")
                     
                     match_info = {
                         "home": home_team,
                         "away": away_team,
-                        "score": f"{home_score} - {away_score}",
-                        "status": "MS" if status_type else "Oynanacak"
+                        "status": "Oynanacak"
                     }
-                    
-                    if status_type:
-                        past_matches.append(match_info)
-                    else:
-                        upcoming_matches.append(match_info)
+                    upcoming_matches.append(match_info)
 
     except Exception as e:
         print(f"API Veri Çekme Hatası: {e}")
 
-    if not past_matches:
-        past_matches = [
-            {"home": "Galatasaray", "score": "2 - 1", "away": "Fenerbahce", "status": "MS"},
-            {"home": "Besiktas", "score": "3 - 0", "away": "Trabzonspor", "status": "MS"},
-            {"home": "Basaksehir", "score": "1 - 1", "away": "Sivasspor", "status": "MS"}
-        ]
-
+    # Yedek liste kontrolü
     if not upcoming_matches:
         upcoming_matches = [
-            {"home": "Fenerbahce", "score": "0 - 0", "away": "Besiktas", "status": "Oynanacak"},
-            {"home": "Trabzonspor", "score": "0 - 0", "away": "Galatasaray", "status": "Oynanacak"},
-            {"home": "Samsunspor", "score": "0 - 0", "away": "Goztepe", "status": "Oynanacak"}
+            {"home": "Fenerbahce", "away": "Besiktas", "status": "Oynanacak"},
+            {"home": "Trabzonspor", "away": "Galatasaray", "status": "Oynanacak"},
+            {"home": "Samsunspor", "away": "Goztepe", "status": "Oynanacak"}
         ]
 
     if not standings:
@@ -100,7 +89,6 @@ def fetch_superlig_data():
         "status": "success",
         "updated_at": int(time.time()),
         "super_lig_puan_durumu": standings,
-        "gecmis_maclar": past_matches[:5],
         "gelecek_maclar": upcoming_matches[:5]
     }
 
