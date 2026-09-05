@@ -12,7 +12,6 @@ cache_data = {
 }
 
 def fetch_superlig_data():
-    # TFF'nin belirttiğiniz sayfası (Örn: Puan durumu ve fikstür sayfası)
     url = "https://www.tff.org/default.aspx?pageID=198"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -37,14 +36,16 @@ def fetch_superlig_data():
                 rows = table.find_all('tr')
                 
                 for row in rows:
-                    # Tablo içerisindeki başlık (th) ve hücre (td) verilerini al
                     cols = row.find_all(['th', 'td'])
-                    cols_text = [col.text.strip() for col in cols if col.text.strip()]
+                    
+                    # --- \n ve bozuk karakterleri temizleyen akıllı kısım burası ---
+                    cols_text = [col.get_text(separator=" ", strip=True).replace("\n", " ").replace("\r", "") for col in cols]
+                    cols_text = [text for text in cols_text if text] # Boş olanları at
                     
                     if cols_text:
                         table_rows.append(cols_text)
                 
-                # Eğer tabloda anlamlı veri varsa listeye ekle
+                # Anlamlı verisi olan tabloları listeye ekle
                 if len(table_rows) > 1:
                     scraped_data["tables"].append({
                         "table_index": index + 1,
@@ -65,7 +66,6 @@ def home():
 def get_superlig():
     current_time = time.time()
     
-    # 2 dakikalık ön bellek (cache) kontrolü
     if cache_data["payload"] and (current_time - cache_data["timestamp"] < CACHE_TIMEOUT):
         return jsonify(cache_data["payload"])
     
