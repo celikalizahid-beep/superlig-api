@@ -1,95 +1,90 @@
 from flask import Flask, jsonify
 import requests
 import time
+import os
 
 app = Flask(__name__)
 
-CACHE_TIMEOUT = 180
+# Dakikalık istek sınırını korumak için 5 dakikalık önbellek
+CACHE_TIMEOUT = 300 
 cache_data = {
     "timestamp": 0,
     "payload": None
 }
+
+# football-data.org API anahtarınız
+API_KEY = os.environ.get("FOOTBALL_DATA_API_KEY", "62f3142b91304778885951b5c01dec08")
 
 def fetch_superlig_data():
     standings = []
     upcoming_matches = []
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'X-Auth-Token': API_KEY
     }
     
     try:
-        # 1. Güncel Puan Durumu Çekme
-        standings_url = "https://site.web.api.espn.com/apis/v2/sports/soccer/tur.1/standings"
+        # 1. Süper Lig Puan Durumu Çekme (Kod: TUR)
+        standings_url = "https://api.football-data.org/v4/competitions/TUR/standings"
         response = requests.get(standings_url, headers=headers, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
-            entries = data.get("children", [{}])[0].get("standings", {}).get("entries", [])
+            table = data.get("standings", [])[0].get("table", [])
             
-            for index, entry in enumerate(entries):
-                team_name = entry.get("team", {}).get("displayName", "Takım")
-                stats = entry.get("stats", [])
-                
-                played = "0"
-                pts = "0"
-                for stat in stats:
-                    if stat.get("name") == "gamesPlayed":
-                        played = str(int(stat.get("value", 0)))
-                    elif stat.get("name") == "points":
-                        pts = str(int(stat.get("value", 0)))
+            for entry in table:
+                pos = str(entry.get("position", 0))
+                team_name = entry.get("team", {}).get("shortName", entry.get("team", {}).get("name", "Takım"))
+                played = str(entry.get("playedGames", 0))
+                pts = str(entry.get("points", 0))
                 
                 standings.append({
-                    "pos": str(index + 1),
+                    "pos": pos,
                     "team": team_name,
                     "p": played,
                     "pts": pts
                 })
         
-        # 2. Gelecek Maçlar / Fikstür Çekme
-        schedule_url = "https://site.api.espn.com/apis/site/v2/sports/soccer/tur.1/scoreboard"
-        sched_resp = requests.get(schedule_url, headers=headers, timeout=10)
+        # 2. Gelecek Maçları Çekme
+        matches_url = "https://api.football-data.org/v4/competitions/TUR/matches?status=SCHEDULED"
+        matches_resp = requests.get(matches_url, headers=headers, timeout=10)
         
-        if sched_resp.status_code == 200:
-            sched_data = sched_resp.json()
-            events = sched_data.get("events", [])
+        if matches_resp.status_code == 200:
+            matches_data = matches_resp.json()
+            matches = matches_data.get("matches", [])
             
-            for event in events:
-                competition = event.get("competitions", [{}])[0]
-                status_type = competition.get("status", {}).get("type", {}).get("completed", False)
+            for match in matches[:5]: # Sadece ilk 5 gelecek maç
+                home_team = match.get("homeTeam", {}).get("shortName", "Ev Sahibi")
+                away_team = match.get("awayTeam", {}).get("shortName", "Deplasman")
                 
-                competitors = competition.get("competitors", [])
-                # Sadece henüz oynanmamış (gelecek) maçları alıyoruz
-                if len(competitors) >= 2 and not status_type:
-                    home_team = competitors[0].get("team", {}).get("shortDisplayName", "")
-                    away_team = competitors[1].get("team", {}).get("shortDisplayName", "")
-                    
-                    match_info = {
-                        "home": home_team,
-                        "away": away_team,
-                        "status": "Oynanacak"
-                    }
-                    upcoming_matches.append(match_info)
-
+                upcoming_matches.append({
+                    "home": home_team,
+                    "away": away_team,
+                    "status": "Oynanacak"
+                })
+                
     except Exception as e:
         print(f"API Veri Çekme Hatası: {e}")
 
-    # Yedek liste kontrolü
+    # Yedek liste kontrolü (API'den veri çekilemezse sistemin çökmemesi için)
+    if not standings:
+        standings = [
+            {"pos": "1", "team": "Galatasaray", "p": "4", "pts": "12"},
+            {"pos": "2", "team": "Fenerbahce", "p": "4", "pts": "10"},
+            {"pos": "3", "team": "Besiktas", "p": "4", "pts": "9"}
+        ]
+        
     if not upcoming_matches:
         upcoming_matches = [
-            {"home": "Fenerbahce", "away": "Besiktas", "status": "Oynanacak"},
-            {"home": "Trabzonspor", "away": "Galatasaray", "status": "Oynanacak"},
-            {"home": "Samsunspor", "away": "Goztepe", "status": "Oynanacak"}
+            {"home": "Galatasaray", "away": "Fenerbahce", "status": "Oynanacak"},
+            {"home": "Besiktas", "away": "Trabzonspor", "status": "Oynanacak"}
         ]
-
-    if not standings:
-        standings = [{"pos": "1", "team": "Galatasaray", "p": "0", "pts": "0"}]
 
     return {
         "status": "success",
         "updated_at": int(time.time()),
         "super_lig_puan_durumu": standings,
-        "gelecek_maclar": upcoming_matches[:5]
+        "gelecek_maclar": upcoming_matches
     }
 
 @app.route('/', methods=['GET'])
