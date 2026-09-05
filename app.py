@@ -12,61 +12,50 @@ cache_data = {
 }
 
 def fetch_superlig_data():
-    # Güncel Süper Lig puan durumu verisi kaynağı
-    url = "https://www.nTVspor.net/futbol/super-lig/puan-durumu"
+    # TFF'nin belirttiğiniz sayfası (Örn: Puan durumu ve fikstür sayfası)
+    url = "https://www.tff.org/default.aspx?pageID=198"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    standings = []
+    scraped_data = {
+        "status": "success",
+        "updated_at": int(time.time()),
+        "tables": []
+    }
     
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Tablo satırlarını bul
-            rows = soup.find_all('tr')
-            pos_counter = 1
+            # Sayfadaki TÜM HTML tablolarını bul
+            tables = soup.find_all('table')
             
-            for row in rows:
-                cols = row.find_all('td')
-                # Puan tablosu satır kontrolü
-                if len(cols) >= 6:
-                    team_name = cols[0].text.strip()
-                    played = cols[1].text.strip()
-                    pts = cols[-1].text.strip() # Son sütun genel puan
+            for index, table in enumerate(tables):
+                table_rows = []
+                rows = table.find_all('tr')
+                
+                for row in rows:
+                    # Tablo içerisindeki başlık (th) ve hücre (td) verilerini al
+                    cols = row.find_all(['th', 'td'])
+                    cols_text = [col.text.strip() for col in cols if col.text.strip()]
                     
-                    # Başlık satırlarını ve geçersiz verileri filtrele
-                    if team_name and played.isdigit():
-                        standings.append({
-                            "pos": str(pos_counter),
-                            "team": team_name[:12], # ESP32 ekranı için takım adını kırp
-                            "p": played,
-                            "pts": pts
-                        })
-                        pos_counter += 1
-                        if pos_counter > 20:
-                            break
-
+                    if cols_text:
+                        table_rows.append(cols_text)
+                
+                # Eğer tabloda anlamlı veri varsa listeye ekle
+                if len(table_rows) > 1:
+                    scraped_data["tables"].append({
+                        "table_index": index + 1,
+                        "rows": table_rows
+                    })
+                    
     except Exception as e:
-        print(f"Scrape hatasi: {e}")
+        scraped_data["status"] = "error"
+        scraped_data["message"] = str(e)
 
-    # Eğer scraping esnasında bir aksaklık olursa ESP32'nin boş kalmaması için yedek kontrolü
-    if not standings:
-        standings = [
-            {"pos": "1", "team": "Galatasaray", "p": "24", "pts": "60"},
-            {"pos": "2", "team": "Fenerbahce", "p": "24", "pts": "57"},
-            {"pos": "3", "team": "Besiktas", "p": "24", "pts": "48"},
-            {"pos": "4", "team": "Trabzonspor", "p": "24", "pts": "45"},
-            {"pos": "5", "team": "Basaksehir", "p": "24", "pts": "40"}
-        ]
-
-    return {
-        "status": "success",
-        "updated_at": int(time.time()),
-        "standings": standings
-    }
+    return scraped_data
 
 @app.route('/', methods=['GET'])
 def home():
@@ -76,7 +65,7 @@ def home():
 def get_superlig():
     current_time = time.time()
     
-    # 2 dakikalık Cache Kontrolü
+    # 2 dakikalık ön bellek (cache) kontrolü
     if cache_data["payload"] and (current_time - cache_data["timestamp"] < CACHE_TIMEOUT):
         return jsonify(cache_data["payload"])
     
