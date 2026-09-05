@@ -17,46 +17,45 @@ def fetch_superlig_data():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    scraped_data = {
-        "status": "success",
-        "updated_at": int(time.time()),
-        "tables": []
-    }
+    standings = []
+    matches = []
     
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Sayfadaki TÜM HTML tablolarını bul
+            # Sayfadaki tüm tabloları tarayıp Süper Lig verilerini ayıklıyoruz
             tables = soup.find_all('table')
             
-            for index, table in enumerate(tables):
-                table_rows = []
+            for table in tables:
                 rows = table.find_all('tr')
-                
                 for row in rows:
                     cols = row.find_all(['th', 'td'])
-                    
-                    # --- \n ve bozuk karakterleri temizleyen akıllı kısım burası ---
                     cols_text = [col.get_text(separator=" ", strip=True).replace("\n", " ").replace("\r", "") for col in cols]
-                    cols_text = [text for text in cols_text if text] # Boş olanları at
+                    cols_text = [text for text in cols_text if text]
                     
-                    if cols_text:
-                        table_rows.append(cols_text)
-                
-                # Anlamlı verisi olan tabloları listeye ekle
-                if len(table_rows) > 1:
-                    scraped_data["tables"].append({
-                        "table_index": index + 1,
-                        "rows": table_rows
-                    })
+                    if not cols_text:
+                        continue
                     
+                    # Puan Durumu Satır Algılama (Takım, Oynanan, Puan içeren sütun yapısı)
+                    # Genellikle TFF tablosunda sıra, takım adı, o, g, b, m, a, y, av, p bulunur
+                    if len(cols_text) >= 9 and cols_text[0].isdigit() and int(cols_text[0]) <= 20:
+                        standings.append({
+                            "pos": cols_text[0],
+                            "team": cols_text[1],
+                            "p": cols_text[2],
+                            "pts": cols_text[-1] # Son sütun puandır
+                        })
+                        
     except Exception as e:
-        scraped_data["status"] = "error"
-        scraped_data["message"] = str(e)
+        print(f"Hata: {e}")
 
-    return scraped_data
+    return {
+        "status": "success",
+        "updated_at": int(time.time()),
+        "super_lig_puan_durumu": standings
+    }
 
 @app.route('/', methods=['GET'])
 def home():
